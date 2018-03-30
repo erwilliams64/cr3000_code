@@ -1,0 +1,238 @@
+'Declaring Arrays for for each controller to be called 
+Public PTemp, batt_volt, C1Result, C1T1, C2T1, C3T1, C4T1, C5T1, C2Result, C3Result, C4Result, C5Result, C1Result_2,  CSP0, C1H1, C2H1, C3H1, C4H1, C5H1, C1A1, C1A2, C1A3, C1A4, C2A1,	C2A2,	C2A3,	C2A4, C3A1,	C3A2,	C3A3,	C3A4,	C4A1,	C4A2,	C4A3	,C4A4,	C5A1,	C5A2,	C5A3,	C5A4
+Public DiffVolt
+Public C1Data1(2) As Long 
+Public C2Data1(2) As Long 
+Public C3Data1(2) As Long
+Public C4Data1(2) As Long
+Public C5Data1(2) As Long
+Public WS_ms
+Public WS_gm
+Public ScanInterval
+Public WhichAlarm As String
+
+Public Recirc As Boolean 
+ 
+'Declaring Heater Status tables
+Public C1Data2(1) As Long
+Public C2Data2(1) As Long 
+Public C3Data2(1) As Long
+Public C4Data2(1) As Long 
+Public C5Data2(1) As Long 
+ 
+'Declaring Alarm Status tables
+Public C1Data3(4) As Long
+Public C2Data3(4) As Long 
+Public C3Data3(4) As Long
+Public C4Data3(4) As Long 
+Public C5Data3(4) As Long 
+ 
+Public Result(15) As Long
+ 
+Public Temp_F(2)
+'Units Temp_F=Deg F
+ 
+'Declaring Email constants 
+Const ToAddr = "cui.test.uaa@gmail.com"
+  'password to email is Corrosion1
+Const Subject = "Email Message Test"
+Const CRLF = CHR(13) + CHR(10)
+ 
+Public AlarmTrigger As Boolean
+Public AlarmTemp As Long
+Public Message As String * 250
+Public EmailSuccess
+Public ServerResponse As String * 50
+ 
+'Declaring Variables to turn off heaters remotely
+ 
+Public H1_ShutOff As Boolean
+Public H2_ShutOff As Boolean
+Public H3_ShutOff As Boolean
+Public H4_ShutOff As Boolean
+Public H5_ShutOff As Boolean
+ 
+'Declaring table which will store a sample of each controller temperature updated every 15 seconds
+DataTable (Temp,1,-1) 'Set table size to # of records, or -1 to autoallocate.
+	DataInterval (0,0,Sec,10)
+	Minimum (1,batt_volt,FP2,False,False)
+	Sample (1,PTemp,FP2)
+	Sample (1,C1T1, FP2)
+	Sample (1,C2T1, FP2)
+	Sample (1,C3T1, FP2)
+	Sample (1,C4T1, FP2)
+	Sample (1,C5T1, FP2)
+	Sample (1,C1H1, FP2)
+	Sample (1,C2H1, FP2)
+	Sample (1,C3H1, FP2)
+	Sample (1,C4H1, FP2)
+	Sample (1,C5H1, FP2)
+	Sample (1,Result(1), FP2)
+	Sample (1,Result(2), FP2)
+	Sample (1,Result(3), FP2)
+	Sample (1,Result(4), FP2)
+	Sample (1,Result(5), FP2)
+	Sample (1,Temp_F(1),FP2)
+	Sample (1,Temp_F(2),FP2)
+EndTable
+ 
+Sub GetPV (Raw, mult)
+  mult=Raw *.01 ' Change back to normal
+EndSub 
+ 
+'Main Program
+BeginProg
+ 
+ScanInterval = 120 'make sure this matches the scan interval declared below
+	Scan (120,Sec,4,0)
+		PanelTemp (PTemp,250)
+		Battery (batt_volt)
+      
+		'calling each controller individually, asking for first two values in array from controllers, check eurotherm controller manual page 96 for all modbus values
+		ModbusMaster (Result(1),ComSDC7,9600,1,3,C1Data1(),2,1,1,90,1)
+		ModbusMaster (Result(2),ComSDC7,9600,2,3,C2Data1(),2,1,1,90,1)
+		ModbusMaster (Result(3),ComSDC7,9600,3,3,C3Data1(),2,1,1,90,1)
+		ModbusMaster (Result(4),ComSDC7,9600,4,3,C4Data1(),2,1,1,90,1)
+		ModbusMaster (Result(5),ComSDC7,9600,5,3,C5Data1(),2,1,1,90,1)
+		
+'The following code retrieves the output status (i.e. when the heaters are on) for each Eurotherm
+	  ModbusMaster (Result(6),ComSDC7,9600,1,3,C1Data2(),552,1,1,90,1)
+	  ModbusMaster (Result(7),ComSDC7,9600,2,3,C2Data2(),552,1,1,90,1)
+	  ModbusMaster (Result(8),ComSDC7,9600,3,3,C3Data2(),552,1,1,90,1)
+	  ModbusMaster (Result(9),ComSDC7,9600,4,3,C4Data2(),552,1,1,90,1)
+	  ModbusMaster (Result(10),ComSDC7,9600,5,3,C5Data2(),552,1,1,90,1)
+	  
+	  TCDiff(Temp_F(),2,mV20C,1,TypeK,PTemp,True,0,_60Hz,1.8,32)
+	
+      
+'The following code retrieves the controller alarm status
+    ModbusMaster (Result(11),ComSDC7,9600,1,3,C1Data3(),295,2,1,90,1)
+    ModbusMaster (Result(12),ComSDC7,9600,1,3,C2Data3(),295,2,1,90,1)
+    ModbusMaster (Result(13),ComSDC7,9600,1,3,C3Data3(),295,2,1,90,1)
+    ModbusMaster (Result(14),ComSDC7,9600,1,3,C4Data3(),295,2,1,90,1)
+    ModbusMaster (Result(15),ComSDC7,9600,1,3,C5Data3(),295,2,1,90,1)
+	
+  'assigning value of each controller (Thermocouple temperature) to a variable EX: C1Data1(2) is now C1T1
+    Call GetPV(C1Data1(1),C1T1) 
+    Call GetPV(C2Data1(1),C2T1)
+    Call GetPV(C3Data1(1),C3T1)
+    Call GetPV(C4Data1(1),C4T1)
+    Call GetPV(C5Data1(1),C5T1)
+    
+    Call GetPV(C1Data2(1),C1H1)
+    Call GetPV(C2Data2(1),C2H1)
+    Call GetPV(C3Data2(1),C3H1)
+    Call GetPV(C4Data2(1),C4H1)
+    Call GetPV(C5Data2(1),C5H1)
+ 
+	  CallTable Temp
+	  
+    Call GetPV(C1Data3(1),C1A1)
+    Call GetPV(C2Data3(1),C2A1)
+    Call GetPV(C3Data3(1),C3A1)
+    Call GetPV(C4Data3(1),C4A1)
+    Call GetPV(C5Data3(1),C5A1)
+    
+    Call GetPV(C1Data3(2),C1A2)
+    Call GetPV(C2Data3(2),C2A2)
+    Call GetPV(C3Data3(2),C3A2)
+    Call GetPV(C4Data3(2),C4A2)
+    Call GetPV(C5Data3(2),C5A2)
+    
+  '  Call GetPV(C1Data3(3),C1A3)
+  '  Call GetPV(C2Data3(3),C2A3)
+  '  Call GetPV(C3Data3(3),C3A3)
+  '  Call GetPV(C4Data3(3),C4A3)
+  '  Call GetPV(C5Data3(3),C5A3)
+  '  
+  '  Call GetPV(C1Data3(4),C1A4)
+  '  Call GetPV(C2Data3(4),C2A4)
+  '  Call GetPV(C3Data3(4),C3A4)
+  '  Call GetPV(C4Data3(4),C4A4)
+  '  Call GetPV(C5Data3(4),C5A4)
+  
+ 
+'Partially following EmailRelay tutorial at https://s.campbellsci.com/documents/us/technical-papers/EmailRelay-function.pdf
+ 
+      
+       If AlarmTrigger = False Then
+         If C1A1 OR C1A2 OR C1A3 OR C1A4 Then 
+           AlarmTrigger = True
+           WhichAlarm =  WhichAlarm + "Temp"
+          EndIf
+       EndIf
+       
+      'Depth sensor alarm
+      VoltDiff(DiffVolt,1,mV5000,1,True,0,_60Hz,1,0)
+      	 If DiffVolt < 1 OR DiffVolt > 500 Then
+      	    AlarmTrigger = True
+      	    WhichAlarm =  WhichAlarm + "Depth"
+      	    EndIf
+      	    
+      'Flow meter alarm
+      PulseCount(WS_ms,1,1,2,1,1,0)
+      		WS_gm=WS_ms*.6/ScanInterval*100
+      		If WS_gm <1 Then
+      		  AlarmTrigger = True
+      		  WhichAlarm =  WhichAlarm + "Flow"
+      		  EndIf
+      		
+       'Email of Alarms
+'       If AlarmTrigger Then
+'         Message = "Hello!" + CRLF + CRLF
+'         Message = Message + "This is an automatic email message from our friendly datalogger named " + "CUI Datalogger" + "."
+'         Message = Message + "An alarm condition has been triggered."
+'         Message = Message + "The alarm triggered is/are " + WhichAlarm + "."
+'         Message = Message + "The Thermocouple temperature for controller 1 is " + C1T1 + " Degrees F." + CRLF + CRLF + CRLF
+'         Message = Message + "Datalogger time is " + Status.Timestamp
+'         EmailSuccess = EmailRelay(ToAddr,Subject,Message,ServerResponse)
+'         AlarmTrigger = False
+'         Erase(Message) 'Erase the message after sending
+         Erase(WhichAlarm)
+'       EndIf
+ 
+'If H_ShutOff Is switched To true, Active setpoint (SP) will be changed To SP = 0 degree F for all heaters
+      CSP0 = 0
+      'CSP1 = 150
+      
+    If Recirc = true Then
+         SW12(1,1)
+         ElseIf Recirc = false Then
+           SW12(1,0)
+           EndIf 
+
+      If H1_ShutOff = true Then
+        ModbusMaster (C1Result_2,ComSDC7,9600,1,16,CSP0,16,1,90,1)
+        'Else ModbusMaster (C1Result_2,ComSDC7,9600,1,16,CSP1,16,1,90,1)
+      EndIf 
+      
+      If H2_ShutOff = true Then
+        ModbusMaster (C1Result_2,ComSDC7,9600,2,16,CSP0,16,1,90,1)
+        'Else ModbusMaster (C1Result_2,ComSDC7,9600,2,16,CSP1,16,1,90,1)
+      EndIf
+      
+      If H3_ShutOff = true Then
+        ModbusMaster (C1Result_2,ComSDC7,9600,3,16,CSP0,16,1,90,1)
+        'Else ModbusMaster (C1Result_2,ComSDC7,9600,3,16,CSP1,16,1,90,1)
+      EndIf 
+              
+      If H4_ShutOff = true Then
+        ModbusMaster (C1Result_2,ComSDC7,9600,4,16,CSP0,16,1,90,1)
+        'Else ModbusMaster (C1Result_2,ComSDC7,9600,4,16,CSP1,16,1,90,1)
+      EndIf  
+             
+      If H5_ShutOff = true Then
+        ModbusMaster (C1Result_2,ComSDC7,9600,5,16,CSP0,16,1,90,1)
+        'Else ModbusMaster (C1Result_2,ComSDC7,9600,5,16,CSP1,16,1,90,1) 
+      EndIf 
+ 
+ 
+Next Scan
+
+EndProg
+ 
+ 
+
+
+
+
